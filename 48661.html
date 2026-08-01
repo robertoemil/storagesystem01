@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام إدارة المخازن | أحمد رمزي</title>
+    
+    <!-- مكتبات React و Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- مكتبة تصدير الإكسل -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+
+    <!-- مكتبات Firebase لقاعدة البيانات (الإصدار المتوافق مع المتصفح) -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; }
+        .table-container { scrollbar-width: thin; scrollbar-color: #cbd5e1 #f8fafc; }
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // =========================================================
+        // إعدادات Firebase الخاصة بك
+        // =========================================================
+        const firebaseConfig = {
+            apiKey: "AIzaSyA3pt3hVMRWbS8PNcfRQuc00WNACoupszs",
+            authDomain: "storage-9c005.firebaseapp.com",
+            projectId: "storage-9c005",
+            storageBucket: "storage-9c005.firebasestorage.app",
+            messagingSenderId: "273756570992",
+            appId: "1:273756570992:web:25c16442145a4937173bb5",
+            measurementId: "G-KFNW8DPVTT"
+        };
+
+        // تهيئة قاعدة البيانات
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+        const db = firebase.firestore();
+        // =========================================================
+
+        const { useState, useMemo, useEffect } = React;
+
+        // الأيقونات
+        const IconSpreadsheet = () => <svg className="text-blue-600" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="8" y1="13" x2="16" y2="13"></line><line x1="8" y1="17" x2="16" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>;
+        const IconPlus = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>;
+        const IconSave = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>;
+        const IconCalendar = () => <svg className="text-gray-400" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+        const IconSearch = () => <svg className="text-gray-400 absolute right-3 top-2.5" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>;
+        const IconDownload = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>;
+        const IconTrash = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>;
+        const IconCloudUp = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="16 16 12 12 8 16"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg>;
+        const IconCloudDown = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path><polyline points="8 16 12 20 16 16"></polyline><line x1="12" y1="12" x2="12" y2="20"></line></svg>;
+
+        const INITIAL_ITEMS = [
+            {"id": 1, "name": "كباب ضانى", "unit": "قطعة", "price": 25.0},
+            {"id": 2, "name": "ريش ضانى", "unit": "كيلو", "price": 600.0},
+            {"id": 3, "name": "كقته لحم", "unit": "كيلو", "price": 290.0},
+            {"id": 4, "name": "كباب شركات", "unit": "كيلو", "price": 460.0},
+            {"id": 5, "name": "كقتة دجاج", "unit": "كيلو", "price": 220.0},
+            {"id": 6, "name": "شيش طاوق", "unit": "قطعة", "price": 10.5},
+            {"id": 7, "name": "فليه اعشاب", "unit": "قطعة", "price": 15.5},
+            {"id": 8, "name": "دجاج مسحب", "unit": "برسيون", "price": 120.0},
+            {"id": 9, "name": "مناديل طرب", "unit": "كيلو", "price": 250.0},
+            {"id": 10, "name": "فراخ بالعظم", "unit": "برسيون", "price": 100.0},
+            {"id": 11, "name": "ريبس", "unit": "كيلو", "price": 430.0},
+            {"id": 12, "name": "لحم ضانى", "unit": "كيلو", "price": 430.0},
+            {"id": 13, "name": "فليه لحم", "unit": "كيلو", "price": 600.0},
+            {"id": 14, "name": "لحم طواجن", "unit": "كيلو", "price": 500.0},
+            {"id": 15, "name": "موزه ضانى", "unit": "كيلو", "price": 600.0},
+            {"id": 16, "name": "كبده شمبري", "unit": "كيلو", "price": 220.0},
+            {"id": 17, "name": "كبدة ضانى", "unit": "كيلو", "price": 450.0},
+            {"id": 18, "name": "سجق", "unit": "كيلو", "price": 290.0},
+            {"id": 19, "name": "عكاوي", "unit": "كيلو", "price": 400.0},
+            {"id": 20, "name": "كوارع", "unit": "كيلو", "price": 220.0},
+            {"id": 21, "name": "لحم عصاج", "unit": "كيلو", "price": 370.0},
+            {"id": 22, "name": "بطه كامل", "unit": "كيلو", "price": 0.0},
+            {"id": 23, "name": "حمام", "unit": "كيلو", "price": 125.0},
+            {"id": 24, "name": "دجاج كامل 1100 جرام", "unit": "كيلو", "price": 190.0},
+            {"id": 25, "name": "فيليه اطفال", "unit": "كيلو", "price": 250.0},
+            {"id": 26, "name": "بوريك جبن", "unit": "قطعه", "price": 10.0},
+            {"id": 27, "name": "بوريك لحم", "unit": "قطعه", "price": 11.0},
+            {"id": 28, "name": "كبيبه لحم", "unit": "قطعه", "price": 15.0},
+            {"id": 29, "name": "ليه", "unit": "كيلو", "price": 400.0},
+            {"id": 30, "name": "كوسه محاشى", "unit": "قطعه", "price": 6.0},
+            {"id": 31, "name": "فلفل محاشى", "unit": "قطعه", "price": 6.0},
+            {"id": 32, "name": "ورق عنب", "unit": "قطعه", "price": 5.0},
+            {"id": 33, "name": "بدنجان محشي", "unit": "قطعه", "price": 6.0},
+            {"id": 34, "name": "سمبوسك جبنه", "unit": "قطعه", "price": 5.0},
+            {"id": 35, "name": "سمبوسك لحم", "unit": "قطعه", "price": 6.0},
+            {"id": 36, "name": "ممبار محاشى", "unit": "كيلو", "price": 130.0},
+            {"id": 37, "name": "سلطه خضراء", "unit": "كيلو", "price": 40.0},
+            {"id": 38, "name": "سلطه ذبادي باللبن", "unit": "كيلو", "price": 80.0},
+            {"id": 39, "name": "سلطه ثوميه", "unit": "كيلو", "price": 70.0},
+            {"id": 40, "name": "سلطه طحينه", "unit": "كيلو", "price": 90.0},
+            {"id": 41, "name": "مخلل مشكل", "unit": "جركن", "price": 17.0},
+            {"id": 42, "name": "سلطه متبل", "unit": "كيلو", "price": 60.0},
+            {"id": 43, "name": "بدنجان عروس", "unit": "كيلو", "price": 25.0},
+            {"id": 44, "name": "سلطه طماطم", "unit": "كيلو", "price": 25.0},
+            {"id": 45, "name": "سلطه بطاطس", "unit": "كيلو", "price": 60.0},
+            {"id": 46, "name": "سلطه زيتونيه", "unit": "كيلو", "price": 60.0},
+            {"id": 47, "name": "كلوسلو", "unit": "كيلو", "price": 80.0},
+            {"id": 48, "name": "بسباس", "unit": "كيلو", "price": 60.0},
+            {"id": 49, "name": "خيار مخلل", "unit": "كيلو", "price": 50.0},
+            {"id": 50, "name": "دقيق خمس نجوم", "unit": "كيلو", "price": 20.0},
+            {"id": 51, "name": "دجاج فطائر", "unit": "كيلو", "price": 220.0},
+            {"id": 52, "name": "لحم فطائر", "unit": "كيلو", "price": 290.0},
+            {"id": 53, "name": "سجق فطائر", "unit": "كيلو", "price": 290.0},
+            {"id": 54, "name": "حواوشي", "unit": "كيلو", "price": 290.0},
+            {"id": 55, "name": "جبنة موتزريلا", "unit": "كيلو", "price": 130.0},
+            {"id": 56, "name": "عسل", "unit": "عدد", "price": 100.0},
+            {"id": 57, "name": "لبنه", "unit": "علبه", "price": 193.0},
+            {"id": 58, "name": "خميره", "unit": "باكو", "price": 70.0},
+            {"id": 59, "name": "لين نيدو", "unit": "كيلو", "price": 220.0},
+            {"id": 60, "name": "ديميجلاس", "unit": "علبة", "price": 398.0},
+            {"id": 61, "name": "كامينا اصفر", "unit": "علبه", "price": 420.0},
+            {"id": 62, "name": "سمسم", "unit": "كيلو", "price": 160.0},
+            {"id": 63, "name": "حبة البركة", "unit": "كيلو", "price": 240.0},
+            {"id": 64, "name": "كريمة طهي", "unit": "علبة", "price": 265.0},
+            {"id": 65, "name": "ليبول صلاحيه", "unit": "عدد", "price": 0.25},
+            {"id": 66, "name": "خله اسنان", "unit": "علبه", "price": 80.0},
+            {"id": 67, "name": "سمك فيليه", "unit": "ك", "price": 150.0},
+            {"id": 68, "name": "جمبري", "unit": "ك", "price": 440.0},
+            {"id": 69, "name": "تونة", "unit": "علب", "price": 50.0},
+            {"id": 70, "name": "شاى باكت", "unit": "علبة", "price": 200.0},
+            {"id": 71, "name": "نسكافية باكت", "unit": "علبة", "price": 29.0},
+            {"id": 72, "name": "فراولة", "unit": "كيلو", "price": 25.0},
+            {"id": 73, "name": "جوافة", "unit": "كيلو", "price": 15.0},
+            {"id": 74, "name": "كيوى", "unit": "حبة", "price": 10.0},
+            {"id": 75, "name": "كوب تيك اواى", "unit": "بالوحدة", "price": 0.5},
+            {"id": 76, "name": "هرنت كفر هيد", "unit": "كيس", "price": 30.0},
+            {"id": 77, "name": "دريسنج", "unit": "زجاجة", "price": 10.0},
+            {"id": 78, "name": "علب سلفر مندي1850", "unit": "عدد", "price": 7.5},
+            {"id": 79, "name": "علب بشامل سلفر", "unit": "عدد", "price": 2.6},
+            {"id": 80, "name": "خل", "unit": "زجاجة", "price": 10.0},
+            {"id": 81, "name": "علبة جلفز اسود", "unit": "علبه", "price": 0},
+            {"id": 82, "name": "تلج", "unit": "لوح", "price": 30.0},
+            {"id": 83, "name": "ارز بسمتي", "unit": "كيلو", "price": 75.0},
+            {"id": 84, "name": "ارز مصري", "unit": "كيلو", "price": 30.0},
+            {"id": 85, "name": "بيض", "unit": "وحدة", "price": 6.0},
+            {"id": 86, "name": "نشا ابيض", "unit": "كيلو", "price": 60.0},
+            {"id": 87, "name": "زيت اولين", "unit": "جركن", "price": 1450.0},
+            {"id": 88, "name": "زيت عباد", "unit": "لتر", "price": 62.5},
+            {"id": 89, "name": "زبيب ايراني", "unit": "كيلو", "price": 220.0},
+            {"id": 90, "name": "لبن المراعي", "unit": "علبة", "price": 50.0},
+            {"id": 91, "name": "زبادي المراعي", "unit": "علبة", "price": 18.0},
+            {"id": 92, "name": "صلصة صفيح", "unit": "صفيحة", "price": 164.5},
+            {"id": 93, "name": "سمن", "unit": "كيلو", "price": 108.8},
+            {"id": 94, "name": "فريك", "unit": "كيلو", "price": 75.0},
+            {"id": 95, "name": "مرقة دجاج", "unit": "علبة", "price": 188.0},
+            {"id": 96, "name": "لسان", "unit": "كيلو", "price": 30.0},
+            {"id": 97, "name": "مكرونه قلم", "unit": "كيلو", "price": 30.0},
+            {"id": 98, "name": "عقل", "unit": "كيلو", "price": 30.0},
+            {"id": 99, "name": "شعرية", "unit": "كيس", "price": 35.0},
+            {"id": 100, "name": "بسلة", "unit": "كيس", "price": 60.0},
+            {"id": 101, "name": "ملوخية", "unit": "كيس", "price": 22.0},
+            {"id": 102, "name": "بامية", "unit": "كيس", "price": 27.0},
+            {"id": 103, "name": "زبده صفراء", "unit": "كيلو", "price": 120.0},
+            {"id": 104, "name": "زيت زيتون", "unit": "زجاجه", "price": 0.0},
+            {"id": 105, "name": "بطاطس فارم فريتس", "unit": "كيلو", "price": 52.5},
+            {"id": 106, "name": "ملح", "unit": "كيس", "price": 3.0},
+            {"id": 107, "name": "بقسمات", "unit": "كيلو", "price": 140.0},
+            {"id": 108, "name": "حبهان ناعم", "unit": "كيلو", "price": 1900.0},
+            {"id": 109, "name": "ورق لورا", "unit": "كيلو", "price": 50.0},
+            {"id": 110, "name": "بلح جوز الطيب", "unit": "كيلو", "price": 350.0},
+            {"id": 111, "name": "فلفل اسود ناعم", "unit": "كيلو", "price": 450.0},
+            {"id": 112, "name": "كسبره ناعم", "unit": "كيلو", "price": 150.0},
+            {"id": 113, "name": "كمون ناعم", "unit": "كيلو", "price": 350.0},
+            {"id": 114, "name": "كركم", "unit": "كيلو", "price": 200.0},
+            {"id": 115, "name": "كاري", "unit": "كيلو", "price": 200.0},
+            {"id": 116, "name": "ثوم بودر", "unit": "كيلو", "price": 200.0},
+            {"id": 117, "name": "بصل بودر", "unit": "كيلو", "price": 200.0},
+            {"id": 118, "name": "قرفه خشب", "unit": "كيلو", "price": 100.0},
+            {"id": 119, "name": "كزبره خشنه", "unit": "كيلو", "price": 120.0},
+            {"id": 120, "name": "كمون خشن", "unit": "كيلو", "price": 120.0},
+            {"id": 121, "name": "قورنفل", "unit": "كيلو", "price": 900.0},
+            {"id": 122, "name": "مونو صوديوم", "unit": "كيلو", "price": 0.0},
+            {"id": 123, "name": "ليمون يابس", "unit": "كيلو", "price": 160.0},
+            {"id": 124, "name": "بن فاتح", "unit": "كيلو", "price": 480.0},
+            {"id": 125, "name": "سكر", "unit": "كيلو", "price": 35.0},
+            {"id": 126, "name": "شاليمو كانز", "unit": "باكت", "price": 7.0},
+            {"id": 127, "name": "شاليمو عصير", "unit": "باكت", "price": 9.0},
+            {"id": 128, "name": "شاي احمر", "unit": "كيلو", "price": 225.0},
+            {"id": 129, "name": "شاي اخضر", "unit": "علبه", "price": 55.0},
+            {"id": 130, "name": "كوب مياة", "unit": "عدد", "price": 0.55},
+            {"id": 131, "name": "كوب عصير", "unit": "عدد", "price": 1.6},
+            {"id": 132, "name": "بسكويت فيري", "unit": "وحده", "price": 5.0},
+            {"id": 133, "name": "مياه", "unit": "بلاته", "price": 105.0},
+            {"id": 134, "name": "كانز", "unit": "بلاته", "price": 330.0},
+            {"id": 135, "name": "كب حلو", "unit": "عدد", "price": 2.0},
+            {"id": 136, "name": "لتر بيبسي", "unit": "بلاته", "price": 210.0},
+            {"id": 137, "name": "اكياس تغليف عيش", "unit": "كيلو", "price": 90.0},
+            {"id": 138, "name": "صابون سائل", "unit": "لتر", "price": 35.0},
+            {"id": 139, "name": "ليف مواعين", "unit": "قطعه", "price": 4.0},
+            {"id": 140, "name": "سلك مواعين", "unit": "قطعه", "price": 2.5},
+            {"id": 141, "name": "ورق زبده", "unit": "كيلو", "price": 75.0},
+            {"id": 142, "name": "بكر حمام كبير", "unit": "عدد.", "price": 80.0},
+            {"id": 143, "name": "بكره حمام صغير", "unit": "عدد.", "price": 15.0},
+            {"id": 144, "name": "صابون ايدي حمام", "unit": "لتر", "price": 30.0},
+            {"id": 145, "name": "شوك", "unit": "باكت", "price": 30.0},
+            {"id": 146, "name": "معالق", "unit": "باكت", "price": 38.0},
+            {"id": 147, "name": "سكاكين", "unit": "باكت", "price": 38.0},
+            {"id": 148, "name": "كفر كامل", "unit": "باكت", "price": 1.6},
+            {"id": 149, "name": "اكياس قمامه", "unit": "كيلو", "price": 90.0},
+            {"id": 150, "name": "مناديل سفره", "unit": "كيس", "price": 14.0},
+            {"id": 151, "name": "مناديل سحب", "unit": "كيس", "price": 15.0},
+            {"id": 152, "name": "اكياس صغيره باللوجو", "unit": "كيلو", "price": 80.0},
+            {"id": 153, "name": "اكياس وسط باللوجو", "unit": "كيلو", "price": 80.0},
+            {"id": 154, "name": "اكياس كبير باللوجو", "unit": "كيلو", "price": 75.0},
+            {"id": 155, "name": "جوانتي شفاف", "unit": "كيس", "price": 8.0},
+            {"id": 156, "name": "كلينج فليم استرتش", "unit": "عدد.", "price": 200.0},
+            {"id": 157, "name": "علبه 4 اونز شفاف", "unit": "علبه", "price": 1.25},
+            {"id": 158, "name": "ريمكال 30 شفاف", "unit": "علبه", "price": 0.7},
+            {"id": 159, "name": "علب بيتزا", "unit": "عدد.", "price": 3.5},
+            {"id": 160, "name": "علب شوربه كرتون", "unit": "علبه", "price": 2.5},
+            {"id": 161, "name": "بكر برنت", "unit": "عدد.", "price": 48.0},
+            {"id": 162, "name": "كاتشب", "unit": "عدد.", "price": 0.35},
+            {"id": 163, "name": "صحن ميكرووف", "unit": "عدد.", "price": 5.0},
+            {"id": 164, "name": "اطباق ارز مدور", "unit": "عدد.", "price": 3.45},
+            {"id": 165, "name": "اطباق فوم نص", "unit": "عدد.", "price": 0.45},
+            {"id": 166, "name": "اطباق فوم كيلو", "unit": "عدد.", "price": 0.65},
+            {"id": 167, "name": "اطباق شوايه عائلي", "unit": "عدد.", "price": 13.0},
+            {"id": 168, "name": "اطباق عاصفه", "unit": "عدد.", "price": 40.0},
+            {"id": 169, "name": "اطباق سيلفر بيضاوي", "unit": "عدد.", "price": 9.0},
+            {"id": 170, "name": "روول فويل", "unit": "عدد.", "price": 450.0},
+            {"id": 171, "name": "باكت بطاطس", "unit": "عدد.", "price": 1.2},
+            {"id": 172, "name": "ظرف سندوتشات", "unit": "عدد", "price": 0.46},
+            {"id": 173, "name": "فحم شوايه", "unit": "جوال", "price": 440.0},
+            {"id": 174, "name": "اكياس برسنه", "unit": "كيلو", "price": 85.0},
+            {"id": 175, "name": "مفرش سفره", "unit": "وحده", "price": 55.0},
+            {"id": 176, "name": "معطر", "unit": "وحده", "price": 55.0},
+            {"id": 177, "name": "شاورما مكسيكي (تصنيع)", "unit": "كيلو", "price": 200.0},
+            {"id": 178, "name": "شاورمة لحمة  (تصنيع)", "unit": "كيلو", "price": 350.0},
+            {"id": 179, "name": "شاورمه دجاج (تصنيع)", "unit": "كيلو", "price": 200.0},
+            {"id": 180, "name": "شاورمه سجق (تصنيع)", "unit": "كيلو", "price": 350.0},
+            {"id": 181, "name": "شاورمه سمك (تصنيع)", "unit": "كيلو", "price": 160.0},
+            {"id": 182, "name": "فراخ شواية", "unit": "كيلو", "price": 170.0},
+            {"id": 183, "name": "فلافل (تصنيع)", "unit": "كيلو", "price": 67.47},
+            {"id": 184, "name": "صوص سجق", "unit": "كيلو", "price": 75.0},
+            {"id": 185, "name": "ثومية(تصنيع)", "unit": "كيلو", "price": 100.07},
+            {"id": 186, "name": "صوص اسبايسي (تصنيع)", "unit": "كيلو", "price": 56.35},
+            {"id": 187, "name": "طحينة سلطة (تصنيع)", "unit": "كيلو", "price": 75.94},
+            {"id": 188, "name": "هالبينو", "unit": "كيلو", "price": 0.0},
+            {"id": 189, "name": "بواز (تصنيع)", "unit": "كيلو", "price": 36.43},
+            {"id": 190, "name": "خس", "unit": "كيلو", "price": 20.0},
+            {"id": 191, "name": "خيار مخلل  (تصنيع)", "unit": "كيلو", "price": 26.94},
+            {"id": 192, "name": "طماطم", "unit": "كيلو", "price": 25.0},
+            {"id": 193, "name": "فلفل رومي احمر", "unit": "كيلو", "price": 55.0},
+            {"id": 194, "name": "هريسة شطة", "unit": "كيلو", "price": 195.0},
+            {"id": 195, "name": "ارز بسمتي  (تصنيع)", "unit": "عدد", "price": 37.93},
+            {"id": 196, "name": "فريك (تصنيع)", "unit": "عدد", "price": 35.63},
+            {"id": 197, "name": "بوم فريت", "unit": "كيلو", "price": 55.0},
+            {"id": 198, "name": "زيت عباد", "unit": "لتر", "price": 85.0},
+            {"id": 199, "name": "زيت اولين", "unit": "لتر", "price": 70.0},
+            {"id": 200, "name": "سويت كورن", "unit": "كيلو", "price": 120.0},
+            {"id": 201, "name": "ملح", "unit": "كيس", "price": 5.0},
+            {"id": 202, "name": "عصير بلو بيري", "unit": "لتر", "price": 175.0},
+            {"id": 203, "name": "زجاجة مياة صغيرة", "unit": "زجاجة", "price": 4.5},
+            {"id": 204, "name": "كنافة جبنة (بيروت)", "unit": "قطعة", "price": 60.0},
+            {"id": 205, "name": "كنافة جبنة (تصنيع)", "unit": "قطعة", "price": 40.31},
+            {"id": 206, "name": "مشروب غازي كانز", "unit": "كانز", "price": 10.0},
+            {"id": 207, "name": "مشروب غازي لتر", "unit": "لتر", "price": 24.0},
+            {"id": 208, "name": "استيكر", "unit": "عدد", "price": 1.0},
+            {"id": 209, "name": "بوكس صغير", "unit": "عدد", "price": 4.75},
+            {"id": 210, "name": "بوكس كبير", "unit": "عدد", "price": 7.0},
+            {"id": 211, "name": "شنطة صغيرة", "unit": "كيلو", "price": 1.5},
+            {"id": 212, "name": "شنطة كبيرة", "unit": "كيلو", "price": 2.0},
+            {"id": 213, "name": "علبة بطاطس", "unit": "عدد", "price": 3.0},
+            {"id": 214, "name": "علبة ريميكال", "unit": "عدد", "price": 1.0},
+            {"id": 215, "name": "علبة سلطة", "unit": "عدد", "price": 2.0},
+            {"id": 216, "name": "علبة فتة", "unit": "عدد", "price": 7.0},
+            {"id": 217, "name": "علبة كنافة", "unit": "عدد", "price": 2.0},
+            {"id": 218, "name": "علبة ميكروويف", "unit": "عدد", "price": 7.5},
+            {"id": 219, "name": "كاتشب", "unit": "عدد", "price": 30.0},
+            {"id": 220, "name": "كفر", "unit": "عدد", "price": 3.0},
+            {"id": 221, "name": "معلقة", "unit": "عدد", "price": 0.85},
+            {"id": 222, "name": "ورق زبدة", "unit": "عدد", "price": 0.55},
+            {"id": 223, "name": "ورق فويل مطبوع", "unit": "عدد", "price": 1.5},
+            {"id": 224, "name": "مخلل", "unit": "كيلو", "price": 20.0},
+            {"id": 225, "name": "جلفزات سوده", "unit": "علبه", "price": 185.0},
+            {"id": 226, "name": "مناديل سفره", "unit": "باكت", "price": 14.0},
+            {"id": 227, "name": "بكر حمام صغيره", "unit": "باكت", "price": 8.0},
+            {"id": 228, "name": "بكر حمام كبير", "unit": "باكت", "price": 75.0},
+            {"id": 229, "name": "شوكه", "unit": "عدد", "price": 0.85},
+            {"id": 230, "name": "جلفزات شفافه", "unit": "باكت", "price": 8.0},
+            {"id": 231, "name": "ليبول صلاحيه", "unit": "عدد", "price": 0.25},
+            {"id": 232, "name": "روول فويل", "unit": "عدد", "price": 450.0},
+            {"id": 233, "name": "مناديل سحب", "unit": "باكت", "price": 15.0},
+            {"id": 234, "name": "اكياس رابش", "unit": "كيلو", "price": 75.0},
+            {"id": 235, "name": "برجر لحم", "unit": "قطعه", "price": 0},
+            {"id": 236, "name": "فليه لحم", "unit": "بورشن", "price": 0},
+            {"id": 237, "name": "بيبروني", "unit": "بورشن", "price": 0},
+            {"id": 238, "name": "هوت دوج", "unit": "بورشن", "price": 0},
+            {"id": 239, "name": "كساديا لحم", "unit": "بورشن", "price": 0},
+            {"id": 240, "name": "ريب أي", "unit": "قطعه", "price": 0},
+            {"id": 241, "name": "سترجانوف لحم", "unit": "بورشن", "price": 0},
+            {"id": 242, "name": "كوردن بلو", "unit": "بورشن", "price": 0},
+            {"id": 243, "name": "فراخ بانيه", "unit": "بورشن", "price": 0},
+            {"id": 244, "name": "صدور فراخ", "unit": "بورشن", "price": 0},
+            {"id": 245, "name": "شوربة فراخ", "unit": "بورشن", "price": 0},
+            {"id": 246, "name": "سترجانوف فراخ", "unit": "بورشن", "price": 0},
+            {"id": 247, "name": "كساديا فراخ", "unit": "بورشن", "price": 0},
+            {"id": 248, "name": "بولونيز", "unit": "بورشن", "price": 0},
+            {"id": 249, "name": "سلمون", "unit": "بورشن", "price": 0},
+            {"id": 250, "name": "جبنة بارميجان", "unit": "كيلو", "price": 0},
+            {"id": 251, "name": "جبنة ميكس", "unit": "بورشن", "price": 0},
+            {"id": 252, "name": "جبنة موتزريلا", "unit": "بورشن", "price": 0},
+            {"id": 253, "name": "موتزريلا ستيكتس", "unit": "بورشن", "price": 0},
+            {"id": 254, "name": "حلقات بصل", "unit": "بورشن", "price": 0},
+            {"id": 255, "name": "شوربة عدس", "unit": "بورشن", "price": 0},
+            {"id": 256, "name": "شوربة خضار", "unit": "بورشن", "price": 0},
+            {"id": 257, "name": "وايت صوص", "unit": "لتر", "price": 0},
+            {"id": 258, "name": "ريد صوص", "unit": "لتر", "price": 0},
+            {"id": 259, "name": "صوص ديمجلاس", "unit": "لتر", "price": 0},
+            {"id": 260, "name": "ساور كريم", "unit": "كيلو", "price": 0},
+            {"id": 261, "name": "زيكو صوص", "unit": "كيلو", "price": 0},
+            {"id": 262, "name": "فنجريت صوص", "unit": "كيلو", "price": 0},
+            {"id": 263, "name": "افوكادو صوص", "unit": "كيلو", "price": 0},
+            {"id": 264, "name": "كاتشب صوص", "unit": "كيلو", "price": 0},
+            {"id": 265, "name": "مايونيز صوص", "unit": "كيلو", "price": 0},
+            {"id": 266, "name": "بيستو صوص", "unit": "كيلو", "price": 0},
+            {"id": 267, "name": "مسترده صوص", "unit": "كيلو", "price": 0},
+            {"id": 268, "name": "عجينة تمبوره", "unit": "كيلو", "price": 0},
+            {"id": 269, "name": "سيزار صوص", "unit": "كيلو", "price": 0},
+            {"id": 270, "name": "ثوم مقشر", "unit": "كيلو", "price": 0},
+            {"id": 271, "name": "داينميت صوص", "unit": "كيلو", "price": 0},
+            {"id": 272, "name": "صوص باربكيو", "unit": "كيلو", "price": 0},
+            {"id": 273, "name": "زيتون شرائح اسود", "unit": "كيلو", "price": 0},
+            {"id": 274, "name": "سلامي", "unit": "بورشين", "price": 0}
+        ];
+
+        function App() {
+            const [activeTab, setActiveTab] = useState('1');
+            const [searchTerm, setSearchTerm] = useState('');
+            
+            const [items, setItems] = useState(() => {
+                const saved = localStorage.getItem('inventory_items_v3');
+                return saved ? JSON.parse(saved) : INITIAL_ITEMS;
+            });
+            
+            const [dailyInputs, setDailyInputs] = useState(() => {
+                const savedInputs = localStorage.getItem('inventory_daily_inputs_v3');
+                return savedInputs ? JSON.parse(savedInputs) : {};
+            });
+
+            const [toastMessage, setToastMessage] = useState('');
+            const [isError, setIsError] = useState(false);
+
+            useEffect(() => {
+                localStorage.setItem('inventory_items_v3', JSON.stringify(items));
+                localStorage.setItem('inventory_daily_inputs_v3', JSON.stringify(dailyInputs));
+            }, [items, dailyInputs]);
+
+            const showToast = (message, error = false) => {
+                setToastMessage(message);
+                setIsError(error);
+                setTimeout(() => setToastMessage(''), 3000);
+            };
+
+            const saveToCloud = () => {
+                if (!db) {
+                    showToast('خطأ: لم تقم بوضع أكواد Firebase في الكود!', true);
+                    return;
+                }
+                showToast('جاري الحفظ في السحابة...');
+                db.collection("inventory_data").doc("ahmed_ramzy_store").set({
+                    items: items,
+                    dailyInputs: dailyInputs,
+                    lastUpdated: firebase.firestore.FieldValue.serverTimestamp()
+                })
+                .then(() => showToast('تم الحفظ في السحابة بنجاح!'))
+                .catch((error) => {
+                    console.error("Error writing document: ", error);
+                    showToast('حدث خطأ أثناء الحفظ، تأكد من إعدادات Firebase', true);
+                });
+            };
+
+            const loadFromCloud = () => {
+                if (!db) {
+                    showToast('خطأ: لم تقم بوضع أكواد Firebase في الكود!', true);
+                    return;
+                }
+                showToast('جاري التحميل من السحابة...');
+                db.collection("inventory_data").doc("ahmed_ramzy_store").get().then((doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if(data.items) setItems(data.items);
+                        if(data.dailyInputs) setDailyInputs(data.dailyInputs);
+                        showToast('تم تحميل بياناتك من السحابة بنجاح!');
+                    } else {
+                        showToast('لا توجد بيانات محفوظة مسبقاً في السحابة.', true);
+                    }
+                }).catch((error) => {
+                    console.error("Error getting document:", error);
+                    showToast('حدث خطأ أثناء التحميل', true);
+                });
+            };
+
+            const processedData = useMemo(() => {
+                const daysData = {};
+                const previousBalances = {}; 
+
+                items.forEach(item => { previousBalances[item.id] = 0; });
+
+                for (let day = 1; day <= 31; day++) {
+                    daysData[day] = items.map(item => {
+                        const input = dailyInputs[day]?.[item.id] || {};
+                        const opening = day === 1 ? (parseFloat(input.manualOpening) || 0) : previousBalances[item.id];
+                        const receipts = parseFloat(input.receipts) || 0;
+                        const out1 = parseFloat(input.out1) || 0;
+                        const out2 = parseFloat(input.out2) || 0;
+                        const out3 = parseFloat(input.out3) || 0;
+                        const out4 = parseFloat(input.out4) || 0;
+
+                        const totalReceived = opening + receipts;
+                        const receivedPriceValue = receipts * item.price; // قيمة المستلم لليوم = الاستلامات * السعر
+                        
+                        const totalIssued = out1 + out2 + out3 + out4;
+                        const issuedPriceValue = totalIssued * item.price;
+                        
+                        const finalBalance = totalReceived - totalIssued;
+                        const finalBalanceValue = finalBalance * item.price;
+
+                        previousBalances[item.id] = finalBalance;
+
+                        return {
+                            ...item,
+                            opening, receipts, out1, out2, out3, out4,
+                            totalReceived, receivedPriceValue, totalIssued, issuedPriceValue, finalBalance, finalBalanceValue
+                        };
+                    });
+                }
+                return daysData;
+            }, [items, dailyInputs]);
+
+            const generalReportData = useMemo(() => {
+                return items.map(item => {
+                    let totalReceipts = 0, totalOut1 = 0, totalOut2 = 0, totalOut3 = 0, totalOut4 = 0;
+
+                    for (let day = 1; day <= 31; day++) {
+                        const dayRecord = processedData[day].find(d => d.id === item.id);
+                        if(dayRecord) {
+                            totalReceipts += dayRecord.receipts;
+                            totalOut1 += dayRecord.out1;
+                            totalOut2 += dayRecord.out2;
+                            totalOut3 += dayRecord.out3;
+                            totalOut4 += dayRecord.out4;
+                        }
+                    }
+
+                    const opening = processedData[1].find(d => d.id === item.id)?.opening || 0;
+                    const totalReceived = opening + totalReceipts;
+                    
+                    const receivedPriceValue = totalReceived * item.price; // قيمة المستلم للعام = إجمالي المستلم * السعر
+                    
+                    const totalIssued = totalOut1 + totalOut2 + totalOut3 + totalOut4;
+                    const issuedPriceValue = totalIssued * item.price;
+                    
+                    const finalBalance = totalReceived - totalIssued;
+                    const finalBalanceValue = finalBalance * item.price;
+
+                    return {
+                        ...item,
+                        opening, receipts: totalReceipts, out1: totalOut1, out2: totalOut2, out3: totalOut3, out4: totalOut4,
+                        totalReceived, receivedPriceValue, totalIssued, issuedPriceValue, finalBalance, finalBalanceValue
+                    };
+                });
+            }, [items, processedData]);
+
+            const filteredGeneralData = generalReportData.filter(item => item.name.includes(searchTerm));
+            const filteredDailyData = processedData[activeTab]?.filter(item => item.name.includes(searchTerm)) || [];
+
+            const handleInputChange = (day, itemId, field, value) => {
+                setDailyInputs(prev => {
+                    const dayData = prev[day] || {};
+                    const itemData = dayData[itemId] || {};
+                    return { ...prev, [day]: { ...dayData, [itemId]: { ...itemData, [field]: value } } };
+                });
+            };
+
+            const handlePriceChange = (itemId, newPriceStr) => {
+                const newPrice = parseFloat(newPriceStr);
+                if(isNaN(newPrice)) return;
+                
+                setItems(prevItems => prevItems.map(item => 
+                    item.id === itemId ? { ...item, price: newPrice } : item
+                ));
+            };
+
+            const handleAddNewItem = () => {
+                const newItemName = prompt("أدخل اسم الخامة الجديدة:");
+                if (!newItemName) return;
+                const newItemUnit = prompt("أدخل الوحدة (مثل: كيلو، قطعة):") || 'وحدة';
+                const newItemPrice = parseFloat(prompt("أدخل السعر:")) || 0;
+
+                const newId = items.length > 0 ? Math.max(...items.map(i => i.id)) + 1 : 1;
+                setItems([...items, { id: newId, name: newItemName, unit: newItemUnit, price: newItemPrice }]);
+                
+                showToast('تم إضافة الصنف بنجاح');
+            };
+
+            const handleClearData = () => {
+                const password = prompt("يرجى إدخال كلمة المرور لتأكيد مسح جميع البيانات:");
+                
+                if (password === "1234") {
+                    if (window.confirm("تحذير أخير: هل أنت متأكد من مسح جميع الحركات والأرصدة المدخلة؟ (سيتم الاحتفاظ بالأصناف)")) {
+                        setDailyInputs({});
+                        showToast('تم مسح جميع الحركات بنجاح، يمكنك بدء شهر جديد');
+                    }
+                } else if (password !== null) {
+                    showToast('كلمة المرور خاطئة! لم يتم مسح البيانات', true);
+                }
+            };
+
+            const exportToExcel = () => {
+                const excelData = generalReportData.map((item, index) => ({
+                    'م': index + 1,
+                    'اسم الخامة': item.name,
+                    'الوحدة': item.unit,
+                    'السعر': item.price,
+                    'رصيد بداية المدة': item.opening,
+                    'الاستلامات': item.receipts,
+                    'إجمالي المستلم': item.totalReceived,
+                    'قيمة المستلم': item.receivedPriceValue,
+                    'منصرف (شاورما مودز)': item.out1,
+                    'منصرف (سرايا العرب)': item.out2,
+                    'منصرف (سرايا إيليت)': item.out3,
+                    'منصرف (سرايا دجله)': item.out4,
+                    'إجمالي المنصرف': item.totalIssued,
+                    'قيمة المنصرف': item.issuedPriceValue,
+                    'الرصيد النهائي': item.finalBalance,
+                    'قيمة الرصيد النهائي': item.finalBalanceValue
+                }));
+
+                const worksheet = XLSX.utils.json_to_sheet(excelData);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "الرصيد العام");
+                
+                if(!worksheet['!views']) worksheet['!views'] = [];
+                worksheet['!views'][0] = { rightToLeft: true };
+
+                XLSX.writeFile(workbook, "تقرير_الرصيد_العام_المخازن.xlsx");
+                
+                showToast('تم تحميل ملف الإكسل بنجاح');
+            };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-4">
+                    {toastMessage && (
+                        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-lg z-50 text-white font-bold ${isError ? 'bg-red-600' : 'bg-green-600'}`}>
+                            {toastMessage}
+                        </div>
+                    )}
+
+                    <div className="w-full max-w-[1500px] bg-white p-6 rounded-xl shadow-md mb-6 flex flex-col md:flex-row justify-between items-center gap-4 border-t-4 border-blue-600">
+                        <div>
+                            <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                                <IconSpreadsheet /> نظام إدارة المخازن | أحمد رمزي
+                            </h1>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 justify-center">
+                            <button onClick={saveToCloud} className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2 rounded-lg font-semibold transition-colors border border-indigo-200">
+                                <IconCloudUp /> حفظ في السحابة
+                            </button>
+                            <button onClick={loadFromCloud} className="flex items-center gap-2 bg-purple-50 text-purple-700 hover:bg-purple-100 px-4 py-2 rounded-lg font-semibold transition-colors border border-purple-200">
+                                <IconCloudDown /> تحميل من السحابة
+                            </button>
+                            <button onClick={handleAddNewItem} className="flex items-center gap-2 bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-lg font-semibold transition-colors">
+                                <IconPlus /> إضافة صنف
+                            </button>
+                            <button onClick={handleClearData} className="flex items-center gap-2 bg-red-50 text-red-700 hover:bg-red-100 px-4 py-2 rounded-lg font-semibold transition-colors">
+                                <IconTrash /> تفريغ البيانات
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-[1500px] mb-4 flex flex-col lg:flex-row justify-between items-center gap-4">
+                        <div className="flex w-full lg:w-auto items-center gap-4">
+                            <button onClick={() => setActiveTab('general')} className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold transition-all shadow-sm ${activeTab === 'general' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white text-gray-600 hover:bg-gray-100'}`}>
+                                <IconSave /> تقرير الرصيد العام
+                            </button>
+                            
+                            <div className="flex items-center gap-3 bg-white p-2 px-4 rounded-lg shadow-sm w-full lg:w-64">
+                                <IconCalendar />
+                                <span className="font-semibold text-gray-700 whitespace-nowrap">اختر اليوم:</span>
+                                <select value={activeTab !== 'general' ? activeTab : '1'} onChange={(e) => setActiveTab(e.target.value)} className="border-gray-300 rounded-md bg-gray-50 py-2 px-2 w-full focus:ring-blue-500 font-bold outline-none cursor-pointer">
+                                    {[...Array(31)].map((_, i) => (
+                                        <option key={i + 1} value={String(i + 1)}> يوم {i + 1}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="flex w-full lg:w-auto items-center gap-4">
+                            <div className="relative w-full lg:w-80">
+                                <IconSearch />
+                                <input 
+                                    type="text" 
+                                    placeholder="ابحث عن خامة..." 
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-4 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                                />
+                            </div>
+                            {activeTab === 'general' && (
+                                <button onClick={exportToExcel} className="flex items-center gap-2 bg-green-600 text-white hover:bg-green-700 px-4 py-2 rounded-lg font-semibold transition-colors whitespace-nowrap shadow-sm">
+                                    <IconDownload /> تصدير إكسل
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="w-full max-w-[1500px] bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                        <div className="overflow-x-auto h-[65vh] table-container">
+                            <table className="w-full text-sm text-right whitespace-nowrap">
+                                <thead className="bg-gray-800 text-white sticky top-0 z-10 shadow-md">
+                                    <tr>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center">م</th>
+                                        <th className="px-3 py-3 border-b border-gray-700">اسم الخامة</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center">الوحدة</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center bg-gray-700">السعر</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-yellow-300">رصيد البداية</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-blue-300">الاستلامات</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center bg-gray-700">إجمالي المستلم</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-teal-300">قيمة المستلم</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-red-300">مودز</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-red-300">العرب</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-red-300">إيليت</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-red-300">دجله</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center bg-gray-700">إجمالي المنصرف</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center bg-gray-700">قيمة المنصرف</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-green-300 text-lg">الرصيد النهائي</th>
+                                        <th className="px-3 py-3 border-b border-gray-700 text-center text-emerald-300 text-lg">قيمة الرصيد النهائي</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-200">
+                                    {activeTab === 'general' ? (
+                                        filteredGeneralData.length > 0 ? filteredGeneralData.map((item, index) => (
+                                            <tr key={item.id} className="hover:bg-blue-50">
+                                                <td className="px-3 py-3 text-center text-gray-500">{index + 1}</td>
+                                                <td className="px-3 py-3 font-bold text-blue-900">{item.name}</td>
+                                                <td className="px-3 py-3 text-center text-gray-600">{item.unit}</td>
+                                                <td className="px-1 py-3 text-center bg-gray-50">
+                                                    <input type="number" value={item.price} onChange={(e) => handlePriceChange(item.id, e.target.value)} className="w-20 p-1 border border-gray-300 rounded text-center font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white"/>
+                                                </td>
+                                                <td className="px-3 py-3 text-center font-bold text-yellow-600 bg-yellow-50">{item.opening}</td>
+                                                <td className="px-3 py-3 text-center font-bold text-blue-600 bg-blue-50">{item.receipts}</td>
+                                                <td className="px-3 py-3 text-center font-bold bg-gray-100">{item.totalReceived}</td>
+                                                <td className="px-3 py-3 text-center font-bold text-teal-700 bg-teal-50">{item.receivedPriceValue.toFixed(2)}</td>
+                                                <td className="px-3 py-3 text-center text-red-600">{item.out1}</td>
+                                                <td className="px-3 py-3 text-center text-red-600">{item.out2}</td>
+                                                <td className="px-3 py-3 text-center text-red-600">{item.out3}</td>
+                                                <td className="px-3 py-3 text-center text-red-600">{item.out4}</td>
+                                                <td className="px-3 py-3 text-center font-bold text-red-700 bg-red-50">{item.totalIssued}</td>
+                                                <td className="px-3 py-3 text-center font-bold bg-gray-100">{item.issuedPriceValue.toFixed(2)}</td>
+                                                <td className="px-3 py-3 text-center font-black text-lg text-green-700 bg-green-100">{item.finalBalance}</td>
+                                                <td className="px-3 py-3 text-center font-black text-lg text-emerald-800 bg-emerald-100">{item.finalBalanceValue.toFixed(2)}</td>
+                                            </tr>
+                                        )) : (
+                                            <tr><td colSpan="16" className="text-center py-8 text-gray-500">لا توجد خامات مطابقة للبحث</td></tr>
+                                        )
+                                    ) : (
+                                        filteredDailyData.length > 0 ? filteredDailyData.map((item, index) => (
+                                            <tr key={item.id} className="hover:bg-blue-50 focus-within:bg-blue-50">
+                                                <td className="px-3 py-2 text-center text-gray-500">{index + 1}</td>
+                                                <td className="px-3 py-2 font-bold text-gray-800">{item.name}</td>
+                                                <td className="px-3 py-2 text-center text-gray-600">{item.unit}</td>
+                                                <td className="px-1 py-2 text-center bg-gray-50">
+                                                    <input type="number" value={item.price} onChange={(e) => handlePriceChange(item.id, e.target.value)} className="w-20 p-1 border border-gray-300 rounded text-center font-semibold focus:ring-2 focus:ring-blue-500 outline-none bg-white"/>
+                                                </td>
+                                                <td className="px-1 py-2 w-24">
+                                                    {activeTab === '1' ? (
+                                                        <input type="number" min="0" value={dailyInputs['1']?.[item.id]?.manualOpening ?? ''} onChange={(e) => handleInputChange('1', item.id, 'manualOpening', e.target.value)} className="w-full p-2 border border-yellow-400 rounded bg-yellow-50 focus:ring-2 outline-none text-center font-bold" placeholder="0" />
+                                                    ) : (
+                                                        <div className="w-full p-2 bg-gray-200 text-gray-600 border border-gray-300 rounded text-center font-bold cursor-not-allowed">{item.opening}</div>
+                                                    )}
+                                                </td>
+                                                <td className="px-1 py-2 w-24"><input type="number" min="0" value={dailyInputs[activeTab]?.[item.id]?.receipts ?? ''} onChange={(e) => handleInputChange(activeTab, item.id, 'receipts', e.target.value)} className="w-full p-2 border border-blue-300 rounded focus:ring-2 outline-none text-center" placeholder="0" /></td>
+                                                <td className="px-3 py-2 text-center font-bold bg-gray-100 border-x border-gray-200">{item.totalReceived}</td>
+                                                <td className="px-3 py-2 text-center font-bold text-teal-700 bg-teal-50 border-r border-gray-200">{item.receivedPriceValue.toFixed(2)}</td>
+                                                <td className="px-1 py-2 w-20"><input type="number" min="0" value={dailyInputs[activeTab]?.[item.id]?.out1 ?? ''} onChange={(e) => handleInputChange(activeTab, item.id, 'out1', e.target.value)} className="w-full p-2 border border-red-200 rounded outline-none text-center" placeholder="0" /></td>
+                                                <td className="px-1 py-2 w-20"><input type="number" min="0" value={dailyInputs[activeTab]?.[item.id]?.out2 ?? ''} onChange={(e) => handleInputChange(activeTab, item.id, 'out2', e.target.value)} className="w-full p-2 border border-red-200 rounded outline-none text-center" placeholder="0" /></td>
+                                                <td className="px-1 py-2 w-20"><input type="number" min="0" value={dailyInputs[activeTab]?.[item.id]?.out3 ?? ''} onChange={(e) => handleInputChange(activeTab, item.id, 'out3', e.target.value)} className="w-full p-2 border border-red-200 rounded outline-none text-center" placeholder="0" /></td>
+                                                <td className="px-1 py-2 w-20"><input type="number" min="0" value={dailyInputs[activeTab]?.[item.id]?.out4 ?? ''} onChange={(e) => handleInputChange(activeTab, item.id, 'out4', e.target.value)} className="w-full p-2 border border-red-200 rounded outline-none text-center" placeholder="0" /></td>
+                                                <td className="px-3 py-2 text-center font-bold text-red-700 bg-red-50 border-x border-gray-200">{item.totalIssued}</td>
+                                                <td className="px-3 py-2 text-center font-bold bg-gray-100 border-l border-gray-200">{item.issuedPriceValue.toFixed(2)}</td>
+                                                <td className="px-3 py-2 text-center font-black text-lg text-green-700 bg-green-100">{item.finalBalance}</td>
+                                                <td className="px-3 py-2 text-center font-black text-lg text-emerald-800 bg-emerald-100 border-r border-gray-200">{item.finalBalanceValue.toFixed(2)}</td>
+                                            </tr>
+                                        )) : (
+                                            <tr><td colSpan="16" className="text-center py-8 text-gray-500">لا توجد خامات مطابقة للبحث</td></tr>
+                                        )
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div className="bg-gray-50 p-4 border-t border-gray-200 text-sm text-gray-500 flex justify-between">
+                            <p>لحفظ البيانات حتى لا تضيع، اضغط على "حفظ في السحابة" بعد نهاية عملك.</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
